@@ -1358,9 +1358,8 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/intel/ixgbe/ixgbe_vf_representor.c',
                  'drivers/net/intel/ixgbe/rte_pmd_ixgbe.c',
 
-                #  #i40e
+                 #i40e
                  'drivers/net/intel/i40e/i40e_rxtx_vec_sse.c',
-                 'drivers/net/intel/i40e/i40e_recycle_mbufs_vec_common.c',
 
                  #igc
                  'drivers/net/intel/e1000/igc_txrx.c',
@@ -1472,6 +1471,9 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  'lib/eal/common/arch/arm/rte_cpuflags.c',
                  'lib/eal/common/arch/arm/rte_cycles.c',
 
+                 #i40e
+                 'drivers/net/intel/i40e/i40e_rxtx_vec_neon.c',
+
                  #Amazon ENA
                  'drivers/net/ena/ena_ethdev.c',
                  'drivers/net/ena/ena_rss.c',
@@ -1479,6 +1481,13 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ena/base/ena_eth_com.c',
 
                  ])
+
+
+dpdk_src_aarch64_ext = SrcGroup(dir='src',
+        src_list=[
+                    'drivers/trex_i40e_fdir.c',
+                  ]
+)
 
 
 dpdk_src_ppc64le = SrcGroup(dir='src/dpdk/',
@@ -1756,6 +1765,7 @@ i40e_dpdk_src = SrcGroup(
         'i40e_tm.c',
         'i40e_vf_representor.c',
         'rte_pmd_i40e.c',
+        'i40e_recycle_mbufs_vec_common.c',
     ])
 
 mlx5_x86_64_dpdk_src = SrcGroup(
@@ -2634,7 +2644,9 @@ def build_prog (bld, build_obj):
     elif march == 'aarch64':
         bp_dpdk = SrcGroups([
                     dpdk_src,
-                    dpdk_src_aarch64
+                    i40e_dpdk_src,
+                    dpdk_src_aarch64,
+                    dpdk_src_aarch64_ext
                     ])
 
         # BPF + JIT
