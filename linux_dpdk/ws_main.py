@@ -1390,6 +1390,7 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'lib/eal/x86/rte_cycles.c',
                  'lib/eal/x86/rte_hypervisor.c',
                  'lib/eal/x86/rte_mmu.c',
+                 'lib/net/net_crc_sse.c',
 
                  #'lib/librte_security/rte_security.c',
 
@@ -1467,10 +1468,6 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  #virtio
                  'drivers/net/virtio/virtio_rxtx_simple_neon.c',
 
-                 #libs
-                 'lib/eal/common/arch/arm/rte_cpuflags.c',
-                 'lib/eal/common/arch/arm/rte_cycles.c',
-
                  #i40e
                  'drivers/net/intel/i40e/i40e_rxtx_vec_neon.c',
 
@@ -1479,6 +1476,11 @@ dpdk_src_aarch64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/ena/ena_rss.c',
                  'drivers/net/ena/base/ena_com.c',
                  'drivers/net/ena/base/ena_eth_com.c',
+
+                 #libs
+                 'lib/eal/arm/rte_cpuflags.c',
+                 'lib/eal/arm/rte_cycles.c',
+                 'lib/eal/arm/rte_mmu.c',
 
                  ])
 
@@ -1496,8 +1498,8 @@ dpdk_src_ppc64le = SrcGroup(dir='src/dpdk/',
                  'drivers/net/intel/i40e/i40e_rxtx_vec_altivec.c',
 
                  #libs
-                 'lib/eal/common/arch/ppc_64/rte_cpuflags.c',
-                 'lib/eal/common/arch/ppc_64/rte_cycles.c',
+                 'lib/eal/ppc/rte_cpuflags.c',
+                 'lib/eal/ppc/rte_cycles.c',
 
                  ])
 
@@ -1697,7 +1699,6 @@ dpdk_src = SrcGroup(dir='src/dpdk/',
                  'lib/net/rte_net.c',
                  'lib/net/rte_net_crc.c',
                  'lib/net/rte_arp.c',
-                 'lib/net/net_crc_sse.c',
                  'lib/pci/rte_pci.c',
                  'lib/ring/rte_ring.c',
                  'lib/timer/rte_timer.c',
@@ -2104,13 +2105,11 @@ if march == 'x86_64':
                       '-DALLOW_EXPERIMENTAL_API',
                       '-DABI_VERSION="25.2"',
                       '-DSUPPORT_CFA_HW_ALL=1',
-
                       ]
 
 elif march == 'aarch64':
     common_flags_new = common_flags + [
                        '-march=native',
-                       '-mtune=cortex-a72',
                        '-DRTE_ARCH_64',
                        '-DRTE_FORCE_INTRINSICS',
                        '-DRTE_MACHINE_NEON',
@@ -2121,6 +2120,7 @@ elif march == 'aarch64':
                        '-DRTE_MACHINE_SHA1',
                        '-DRTE_MACHINE_SHA2',
                        '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_EVTSTRM,RTE_CPUFLAG_NEON,RTE_CPUFLAG_CRC32,RTE_CPUFLAG_AES,RTE_CPUFLAG_PMULL,RTE_CPUFLAG_SHA1,RTE_CPUFLAG_SHA2',
+                       '-DSUPPORT_CFA_HW_ALL=1',
                        '-DTREX_USE_BPFJIT',
                        ]
     common_flags_old = common_flags + [
@@ -2135,6 +2135,7 @@ elif march == 'aarch64':
                        '-DRTE_MACHINE_SHA1',
                        '-DRTE_MACHINE_SHA2',
                        '-DRTE_COMPILE_TIME_CPUFLAGS=RTE_CPUFLAG_NEON,RTE_CPUFLAG_CRC32,RTE_CPUFLAG_AES,RTE_CPUFLAG_PMULL,RTE_CPUFLAG_SHA1,RTE_CPUFLAG_SHA2',
+                       '-DSUPPORT_CFA_HW_ALL=1',
                        '-DTREX_USE_BPFJIT',
                        ]
 
@@ -2318,7 +2319,7 @@ bpf_includes_path = '../external_libs/bpf ../external_libs/bpf/bpfjit'
 if march == 'x86_64':
     DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2507_x86_64/rte_config.h','-DALLOW_INTERNAL_API','-DABI_VERSION="25.2"']
 elif march == 'aarch64':
-    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2507_x86_64_aarch64/rte_config.h']
+    DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DVF_DRIVER', '-DINTEGRATED_VF', '-DRTE_FORCE_INTRINSICS', '-include', '../src/pal/linux_dpdk/dpdk_2507_aarch64/rte_config.h', '-DALLOW_INTERNAL_API', '-DABI_VERSION="25.2"']
 elif march == 'ppc64le':
     DPDK_FLAGS=['-DTAP_MAX_QUEUES=16','-D_GNU_SOURCE', '-DPF_DRIVER', '-DX722_SUPPORT', '-DX722_A0_SUPPORT', '-DVF_DRIVER', '-DINTEGRATED_VF', '-include', '../src/pal/linux_dpdk/dpdk_2507_x86_64_ppc64le/rte_config.h']
 
@@ -2532,7 +2533,7 @@ class build_option:
             if self.isIntelPlatform():
                 flags += ['-mrtm']
 
-        if (self.isIntelPlatform() or self.isPpcPlatform()) and not self.is_clang():
+        if (self.isIntelPlatform() or self.isPpcPlatform() or self.isArmPlatform()) and not self.is_clang():
             flags += [
                       '-Wno-aligned-new'
                      ]
