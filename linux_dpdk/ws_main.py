@@ -144,6 +144,7 @@ def options(opt):
     opt.add_option('--publish-commit', '--publish_commit', dest='publish_commit', default=False, action='store', help="Specify commit id for 'publish_both' option (Please make sure it's good!)")
     opt.add_option('--no-bnxt', dest='no_bnxt', default=False, action='store_true', help="don't use bnxt dpdk driver. use with ./b configure --no-bnxt. no need to run build with it")
     opt.add_option('--no-mlx', dest='no_mlx', default=('all' if march == 'aarch64' else None), action='store', help="don't use mlx4/mlx5 dpdk driver. use with ./b configure --no-mlx. no need to run build with it")
+    opt.add_option('--no-gve', dest='no_gve', default=False, action='store_true', help="don't use gve dpdk driver. use with ./b configure --no-gve")
     opt.add_option('--with-mana', dest='with_mana', default=False, action='store_true', help="Use Mana dpdk driver. Use with ./b configure --with-mana.")
     opt.add_option('--with-ntacc', dest='with_ntacc', default=False, action='store_true', help="Use Napatech dpdk driver. Use with ./b configure --with-ntacc.")    
     opt.add_option('--with-bird', default=False, action='store_true', help="Build Bird server. Use with ./b configure --with-bird.")
@@ -839,6 +840,7 @@ def configure(conf):
     conf.check_cxx(lib = 'z', errmsg = missing_pkg_msg(fedora = 'zlib-devel', ubuntu = 'zlib1g-dev'))
     no_mlx          = conf.options.no_mlx
     no_bnxt         = conf.options.no_bnxt
+    no_gve          = conf.options.no_gve
     with_mana       = conf.options.with_mana
     with_ntacc      = conf.options.with_ntacc
     with_bird       = conf.options.with_bird
@@ -874,6 +876,10 @@ def configure(conf):
     conf.env.NO_BNXT = no_bnxt
     if not no_bnxt:
         Logs.pprint('YELLOW', 'Building bnxt PMD')
+
+    conf.env.NO_GVE = no_gve
+    if no_gve:
+        Logs.pprint('YELLOW', 'Disabling GVE driver')
 
     if conf.env.TAP:
         conf.configure_tap(mandatory = False)
@@ -1395,16 +1401,6 @@ dpdk_src_x86_64 = SrcGroup(dir='src/dpdk/',
                  'drivers/net/failsafe/failsafe_flow.c',
                  'drivers/net/failsafe/failsafe_intr.c',
 
-                 #gve
-                 'drivers/net/gve/base/gve_adminq.c',
-                 'drivers/net/gve/gve_rx.c',
-                 'drivers/net/gve/gve_tx.c',
-                 'drivers/net/gve/gve_rx_dqo.c',
-                 'drivers/net/gve/gve_tx_dqo.c',
-                 'drivers/net/gve/gve_ethdev.c',
-                 'drivers/net/gve/gve_version.c',
-                 'drivers/net/gve/gve_rss.c',
-
                  #vdev_netvsc
                  'drivers/net/vdev_netvsc/vdev_netvsc.c',
 
@@ -1719,6 +1715,19 @@ ntacc_dpdk_src = SrcGroup(dir='src/dpdk/drivers/net/ntacc',
                  'nt_compat.c',
             ])
 
+gve_dpdk_src = SrcGroup(
+    dir='src/dpdk/drivers/net/gve',
+    src_list=[
+        'base/gve_adminq.c',
+        'gve_rx.c',
+        'gve_tx.c',
+        'gve_rx_dqo.c',
+        'gve_tx_dqo.c',
+        'gve_ethdev.c',
+        'gve_version.c',
+        'gve_rss.c',
+    ])
+
 libmnl_src = SrcGroup(
     dir = 'external_libs/libmnl/src',
     src_list = [
@@ -1994,6 +2003,10 @@ mana_dpdk =SrcGroups([
 
 ntacc_dpdk =SrcGroups([
                 ntacc_dpdk_src
+                ])
+
+gve_dpdk = SrcGroups([
+                gve_dpdk_src
                 ])
 
 ixgbe_dpdk =SrcGroups([
@@ -2483,6 +2496,12 @@ class build_option:
     def get_bnxtso_target (self):
         return self.update_executable_name("libbnxt")+'.so'
 
+    def get_gve_target (self):
+        return self.update_executable_name("gve")
+
+    def get_gveso_target (self):
+        return self.update_executable_name("libgve")+'.so'
+
     def get_tcp_target(self):
         return self.update_executable_name("tcp")
 
@@ -2800,6 +2819,15 @@ def build_prog (bld, build_obj):
           target   = build_obj.get_bnxt_target()
         )
 
+    if bld.env.NO_GVE == False:
+        bld.shlib(
+          features='c',
+          includes = dpdk_includes_path,
+          cflags   = (cflags + DPDK_FLAGS),
+          source   = gve_dpdk.file_list(top),
+          target   = build_obj.get_gve_target()
+        )
+
 
 
 
@@ -2976,6 +3004,11 @@ def install_single_system (bld, exec_p, build_obj):
     # BNXT
     do_create_link(src = os.path.realpath(o + build_obj.get_bnxtso_target()),
                    name = build_obj.get_bnxtso_target(),
+                   where = so_path)
+
+    # GVE
+    do_create_link(src = os.path.realpath(o + build_obj.get_gveso_target()),
+                   name = build_obj.get_gveso_target(),
                    where = so_path)
 
 
